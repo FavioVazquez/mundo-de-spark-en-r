@@ -1,0 +1,244 @@
+---
+title: "Intro Sparklyr"
+author: "Favio Vázquez (Total rip-off de Edgar Ruiz)"
+date: "25 de octubre de 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+
+
+El paquete de R llamado sparklyr facilita el aprendizaje mediante un instalador de Spark que se puede usar dentro de una computadora personal, incluyendo Windows. En este taller los participantes aprenderán a utilizar Spark por medio de R mediante el uso de diferentes técnicas y funciones para:
+
+- Transformar datos
+- Crear modelos estadísticos
+- Programar canales de datos.
+
+```{r, eval = FALSE}
+install.packages("sparklyr")
+install.packages("tidyverse")
+install.packages("dbplot")
+install.packages("nycflights13")
+```
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+library(sparklyr)
+
+spark_install("2.3.1")
+```
+
+
+```{r}
+sc <- spark_connect(master = "local", version = "2.3.1")
+```
+
+```{r}
+vuelos <- sdf_copy_to(sc, flights)
+```
+
+```{r}
+vuelos %>%
+  tally()
+```
+```{r}
+vuelos %>%
+  group_by(origin) %>%
+  tally()
+```
+
+```{r}
+vuelos %>%
+  group_by(origin) %>%
+  summarise(
+    promedio_tarde = mean(dep_delay, na.rm = TRUE)
+    )
+```
+
+
+```{r}
+vuelos %>%
+  ft_binarizer(
+    input_col = "arr_delay",
+    output_col = "tarde",
+    threshold = 15
+  ) %>%
+  select(
+    arr_delay,
+    tarde
+  )
+```
+
+```{r}
+vuelos %>%
+  mutate(sched_dep_time = as.numeric(sched_dep_time)) %>%
+  ft_bucketizer(
+    input_col  = "sched_dep_time",
+    output_col = "hora",
+    splits = c(0, 400, 800, 1200, 1600, 2000, 2400)
+  ) %>%
+  select(
+    sched_dep_time,
+    hora
+  )
+  
+```
+
+
+```{r}
+vuelos %>%
+  mutate(sched_dep_time = as.numeric(sched_dep_time)) %>%
+  ft_bucketizer(
+    input_col  = "sched_dep_time",
+    output_col = "hora",
+    splits = c(0, 800, 1200, 1600, 2000, 2400)
+  ) %>%
+  group_by(hora) %>%
+  tally() %>%
+  arrange(hora)
+  
+```
+
+```{r}
+muestra_vuelos <-vuelos %>%
+  filter(!is.na(arr_delay)) %>%
+  mutate(sched_dep_time = as.numeric(sched_dep_time)) %>%
+  ft_binarizer(
+    input_col = "arr_delay",
+    output_col = "tarde",
+    threshold = 15
+  ) %>%
+  ft_bucketizer(
+    input_col = "sched_dep_time",
+    output_col = "horas",
+    splits = c(400, 800, 1200, 1600, 2000, 2400)
+  ) %>%
+  mutate(dephour = paste0("h", as.integer(horas))) %>%
+  sdf_partition(entrenar = 0.01, examinar = 0.09, otros = 0.9)
+
+muestra_vuelos$entrenar
+```
+
+```{r}
+modelo <- muestra_vuelos$entrenar %>%
+  ml_logistic_regression(tarde ~.)
+
+```
+
+## Visualizaciones
+
+```{r}
+per_month <- vuelos %>%
+  group_by(month) %>%
+  tally() %>%
+  collect()
+
+per_month
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(per_month) +
+  geom_line(aes(month, n))
+```
+
+```{r}
+library(dbplot)
+```
+
+```{r}
+vuelos %>%
+  dbplot_histogram(sched_dep_time)
+```
+
+```{r}
+vuelos %>%
+  dbplot_raster(sched_dep_time, sched_arr_time)
+```
+
+```{r}
+vuelos %>%
+  dbplot_raster(sched_dep_time, sched_arr_time, mean(arr_delay))
+```
+```{r}
+vuelos %>%
+  dbplot_boxplot(origin, arr_delay)
+```
+
+
+# Pipelines (Tuberias)
+
+```{r}
+entrenar <- muestra_vuelos$entrenar %>%
+  mutate(
+    arr_delay = ifelse(arr_delay == "NaN", 0, arr_delay)
+  ) %>%
+  select(
+    month,
+    sched_dep_time,
+    arr_delay,
+    distance
+  ) %>%
+  mutate_all(as.numeric)
+```
+
+
+```{r}
+tuberia_vuelos <- ml_pipeline(sc) %>%
+  ft_dplyr_transformer(
+    tbl = entrenar
+  ) %>% 
+  ft_binarizer(
+    input_col = "arr_delay",
+    output_col = "tarde",
+    threshold = 15
+  ) %>%
+  ft_bucketizer(
+    input_col = "sched_dep_time",
+    output_col = "horas",
+    splits = c(400, 800, 1200, 1600, 2000, 2400)
+  )  %>%
+  ft_r_formula(tarde ~ horas + distance + arr_delay) %>% 
+  ml_logistic_regression()
+
+tuberia_vuelos
+
+```
+
+```{r}
+modelo_nuevo <- ml_fit(
+  tuberia_vuelos, 
+  muestra_vuelos$entrenar
+  )
+
+modelo_nuevo
+```
+
+```{r}
+predicciones <- ml_transform(
+  x = modelo_nuevo,
+  dataset = muestra_vuelos$examinar
+)
+
+predicciones
+```
+
+```{r}
+predicciones%>%
+  group_by(tarde, prediction) %>%
+  tally()
+```
+
+```{r}
+ml_save(tuberia_vuelos, "tuberia", overwrite = TRUE)
+
+dir("tuberia")
+```
+
+```{r}
+spark_disconnect(sc)
+```
