@@ -10,5 +10,8 @@ El framework del que todos hablan en este momento, Apache Spark. Mucha gente est
 
 # Código
 
+- [RMD](https://github.com/FavioVazquez/mundo-de-spark-en-r/blob/master/Intro_Sparklyr.Rmd)
+- [PDF](https://github.com/FavioVazquez/mundo-de-spark-en-r/blob/master/Intro_Sparklyr.pdf)
+
 Favio Vázquez
 Ciencia y Datos
