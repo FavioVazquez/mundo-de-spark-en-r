@@ -6,6 +6,8 @@ El framework del que todos hablan en este momento, Apache Spark. Mucha gente est
 
 # Láminas 
 
+[Mundo de Spark en R](https://github.com/FavioVazquez/mundo-de-spark-en-r/blob/master/Mundo%20de%20Spark%20en%20R.pdf)
+
 # Código
 
 Favio Vázquez
