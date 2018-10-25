@@ -3,11 +3,10 @@ title: "Intro Sparklyr"
 author: "Favio Vázquez (Total rip-off de Edgar Ruiz)"
 date: "25 de octubre de 2018"
 output:
-  pdf_document: default
+  pdf_document:
+    latex_engine: xelatex
   html_document: default
 ---
-
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
 
 
 El paquete de R llamado sparklyr facilita el aprendizaje mediante un instalador de Spark que se puede usar dentro de una computadora personal, incluyendo Windows. En este taller los participantes aprenderán a utilizar Spark por medio de R mediante el uso de diferentes técnicas y funciones para:
